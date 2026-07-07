@@ -1,0 +1,79 @@
+name: "nemotron_asr_streaming"
+backend: "python"
+max_batch_size: 8
+
+# Real-time cache-aware streaming. Each audio stream is a Triton "sequence"
+# (same correlation_id across requests); the backend keeps per-sequence encoder
+# cache + RNNT decode state, so each request only carries a new audio chunk and
+# returns the newly finalized transcript text (delta).
+input [
+  {
+    name: "AUDIO_CHUNK"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+  },
+  {
+    name: "TARGET_LANG"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "TRANSCRIPT"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+
+sequence_batching {
+  max_sequence_idle_microseconds: 60000000
+  oldest {
+    max_candidate_sequences: 8
+  }
+  control_input [
+    {
+      name: "START"
+      control [ { kind: CONTROL_SEQUENCE_START int32_false_true: [ 0, 1 ] } ]
+    },
+    {
+      name: "READY"
+      control [ { kind: CONTROL_SEQUENCE_READY int32_false_true: [ 0, 1 ] } ]
+    },
+    {
+      name: "END"
+      control [ { kind: CONTROL_SEQUENCE_END int32_false_true: [ 0, 1 ] } ]
+    },
+    {
+      name: "CORRID"
+      control [ { kind: CONTROL_SEQUENCE_CORRID data_type: TYPE_UINT64 } ]
+    }
+  ]
+}
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# --- Locations ---------------------------------------------------------------
+# ENGINE_DIR must contain streaming_encoder-nemotron.engine + decoder_joint-nemotron.engine.
+# ASSETS_DIR defaults to the shared offline model assets (../../nemotron_asr/1/assets).
+parameters [
+  {
+    key: "ENGINE_DIR"
+    value: { string_value: "/engines" }
+  },
+  {
+    key: "DEFAULT_LANG"
+    value: { string_value: "en-US" }
+  }
+]
+
+# No EXECUTION_ENV_PATH: backend deps (tensorrt-cu13==10.16 + torch cu13 + numpy)
+# are baked into the Triton container image via the Dockerfile. See ENVIRONMENT.md.

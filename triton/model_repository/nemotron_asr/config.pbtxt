@@ -1,0 +1,53 @@
+name: "nemotron_asr"
+backend: "python"
+max_batch_size: 0
+
+input [
+  {
+    name: "AUDIO"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+  },
+  {
+    name: "TARGET_LANG"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+    optional: true
+  }
+]
+
+output [
+  {
+    name: "TRANSCRIPT"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# --- Locations ---------------------------------------------------------------
+# ENGINE_DIR: directory holding encoder-nemotron.engine and
+#   decoder_joint-nemotron.engine. Override with -e or mount and set here.
+# ASSETS_DIR: defaults to <model>/1/assets (packaged with the repo).
+parameters [
+  {
+    key: "ENGINE_DIR"
+    value: { string_value: "/engines" }
+  },
+  {
+    key: "DEFAULT_LANG"
+    value: { string_value: "en-US" }
+  }
+]
+
+# --- Python execution environment -------------------------------------------
+# No EXECUTION_ENV_PATH: the backend deps (tensorrt-cu13==10.16 + torch cu13 +
+# numpy, matching the engines) are installed directly into the Triton container's
+# Python via the Dockerfile (see ENVIRONMENT.md). The backend uses that interpreter.

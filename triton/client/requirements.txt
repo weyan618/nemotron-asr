@@ -1,0 +1,5 @@
+tritonclient[all]>=2.40   # http + grpc clients (asr_client / streaming_client / grpc_streaming_client)
+soundfile>=0.12
+numpy>=1.24
+librosa>=0.10  # optional, only needed to resample non-16kHz audio
+requests>=2.28  # only for http_demo.py (raw KServe v2 REST, no tritonclient)
